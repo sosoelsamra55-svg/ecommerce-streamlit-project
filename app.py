@@ -499,6 +499,421 @@ def cleaning_page():
         "text/csv"
     )
 
+# =========================================================
+# PREPROCESSING
+# =========================================================
+
+def preprocess_data(clean_df):
+    df = clean_df.copy()
+
+    # Missing values summary
+    missing_summary = pd.DataFrame({
+        "Dtype": df.dtypes.astype(str),
+        "Missing Count": df.isna().sum(),
+        "Missing %": (df.isna().mean() * 100).round(2)
+    }).sort_values("Missing %", ascending=False)
+
+    # Duplicate checks
+    duplicates = int(df.duplicated().sum())
+
+    duplicate_order_ids = 0
+    if "order_id" in df.columns:
+        duplicate_order_ids = int(
+            df.duplicated("order_id", keep=False).sum()
+        )
+
+    # Return consistency
+    inconsistent_no = 0
+    inconsistent_yes = 0
+
+    return_cols = [
+        "refund_method",
+        "return_reason_category",
+        "return_complaint_text",
+        "return_request_date"
+    ]
+
+    if {"returned", "refund_method"}.issubset(df.columns):
+        inconsistent_no = int(
+            (
+                (df["returned"] == "No")
+                & df["refund_method"].notna()
+            ).sum()
+        )
+
+    if "returned" in df.columns and all(
+        col in df.columns for col in return_cols
+    ):
+        inconsistent_yes = int(
+            (
+                (df["returned"] == "Yes")
+                & df[return_cols].isna().all(axis=1)
+            ).sum()
+        )
+
+    # Courier check
+    missing_courier = 0
+
+    if "courier" in df.columns:
+        missing_courier = int(
+            df["courier"].isna().sum()
+        )
+
+    # =====================================================
+    # OUTLIER DETECTION USING IQR
+    # =====================================================
+
+    outlier_columns = [
+        "net_revenue_egp",
+        "unit_price_egp",
+        "quantity",
+        "actual_delivery_days",
+        "lead_time_days"
+    ]
+
+    outlier_results = []
+
+    for col in outlier_columns:
+
+        if col not in df.columns:
+            continue
+
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+
+        IQR = Q3 - Q1
+
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+
+        flag_name = f"{col}_outlier_flag"
+
+        df[flag_name] = (
+            (df[col] < lower_bound)
+            | (df[col] > upper_bound)
+        )
+
+        outlier_results.append({
+            "Column": col,
+            "Q1": round(Q1, 2),
+            "Q3": round(Q3, 2),
+            "Lower Bound": round(lower_bound, 2),
+            "Upper Bound": round(upper_bound, 2),
+            "Outliers": int(df[flag_name].sum())
+        })
+
+    outlier_summary = pd.DataFrame(outlier_results)
+
+    # =====================================================
+    # EXTRA FEATURES FROM PREPROCESSING NOTEBOOK
+    # =====================================================
+
+    if "price_gap_percent" in df.columns:
+
+        df["price_position"] = pd.cut(
+            df["price_gap_percent"],
+            bins=[
+                -float("inf"),
+                -2,
+                2,
+                float("inf")
+            ],
+            labels=[
+                "Below Competitor",
+                "Similar to Competitor",
+                "Above Competitor"
+            ]
+        )
+
+    if {
+        "stock_available_before_sale",
+        "quantity"
+    }.issubset(df.columns):
+
+        df["low_stock_flag"] = (
+            df["stock_available_before_sale"]
+            < df["quantity"]
+        )
+
+    report = {
+        "Rows": len(df),
+        "Columns": df.shape[1],
+        "Duplicates": duplicates,
+        "Duplicate Order IDs": duplicate_order_ids,
+        "Inconsistent No": inconsistent_no,
+        "Inconsistent Yes": inconsistent_yes,
+        "Missing Courier": missing_courier
+    }
+
+    return (
+        df,
+        missing_summary,
+        outlier_summary,
+        report
+    )
+
+
+# =========================================================
+# PREPROCESSING PAGE
+# =========================================================
+
+def preprocessing_page():
+
+    st.title("⚙️ Data Preprocessing")
+
+    st.write(
+        "This section performs missing-value auditing, "
+        "consistency checks, IQR outlier detection "
+        "and additional feature engineering."
+    )
+
+    # Use cleaned data automatically
+    if "clean_df" in st.session_state:
+
+        clean_df = st.session_state["clean_df"].copy()
+
+        st.success(
+            "Using cleaned data from Data Cleaning ✅"
+        )
+
+    else:
+
+        uploaded_file = st.file_uploader(
+            "Upload Project1_Clean_Orders.csv",
+            type=["csv"],
+            key="preprocessing_file"
+        )
+
+        if uploaded_file is None:
+
+            st.info(
+                "Please run Data Cleaning first "
+                "or upload the cleaned CSV file."
+            )
+
+            return
+
+        clean_df = pd.read_csv(uploaded_file)
+
+    try:
+
+        (
+            preprocessed_df,
+            missing_summary,
+            outlier_summary,
+            report
+        ) = preprocess_data(clean_df)
+
+        st.session_state[
+            "preprocessed_df"
+        ] = preprocessed_df
+
+    except Exception as e:
+
+        st.error(
+            f"Preprocessing Error: {e}"
+        )
+
+        return
+
+    st.success(
+        "Preprocessing completed successfully ✅"
+    )
+
+    # =====================================================
+    # METRICS
+    # =====================================================
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric(
+        "Rows",
+        report["Rows"]
+    )
+
+    col2.metric(
+        "Columns",
+        report["Columns"]
+    )
+
+    col3.metric(
+        "Duplicates",
+        report["Duplicates"]
+    )
+
+    col4.metric(
+        "Duplicate Order IDs",
+        report["Duplicate Order IDs"]
+    )
+
+    # =====================================================
+    # TABS
+    # =====================================================
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Missing Values",
+        "Consistency Checks",
+        "Outliers",
+        "Final Data"
+    ])
+
+    # -----------------------------
+    # Missing Values
+    # -----------------------------
+
+    with tab1:
+
+        st.subheader(
+            "Missing Value Audit"
+        )
+
+        st.dataframe(
+            missing_summary,
+            use_container_width=True
+        )
+
+        st.info(
+            "Return-related missing values are kept "
+            "when the order was not returned. "
+            "Courier can also be missing for "
+            "orders picked up from the store."
+        )
+
+    # -----------------------------
+    # Consistency
+    # -----------------------------
+
+    with tab2:
+
+        st.subheader(
+            "Consistency Checks"
+        )
+
+        c1, c2, c3 = st.columns(3)
+
+        c1.metric(
+            "Returned No + Refund",
+            report["Inconsistent No"]
+        )
+
+        c2.metric(
+            "Returned Yes + Missing Return Data",
+            report["Inconsistent Yes"]
+        )
+
+        c3.metric(
+            "Missing Courier",
+            report["Missing Courier"]
+        )
+
+    # -----------------------------
+    # Outliers
+    # -----------------------------
+
+    with tab3:
+
+        st.subheader(
+            "IQR Outlier Detection"
+        )
+
+        st.write(
+            "Outliers are flagged, not removed."
+        )
+
+        st.dataframe(
+            outlier_summary,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        if not outlier_summary.empty:
+
+            chart_data = (
+                outlier_summary
+                .set_index("Column")[["Outliers"]]
+            )
+
+            st.bar_chart(
+                chart_data
+            )
+
+        st.subheader(
+            "Created Outlier Flags"
+        )
+
+        flag_columns = [
+            "net_revenue_egp_outlier_flag",
+            "unit_price_egp_outlier_flag",
+            "quantity_outlier_flag",
+            "actual_delivery_days_outlier_flag",
+            "lead_time_days_outlier_flag"
+        ]
+
+        existing_flags = [
+            col for col in flag_columns
+            if col in preprocessed_df.columns
+        ]
+
+        st.write(existing_flags)
+
+    # -----------------------------
+    # Final Data
+    # -----------------------------
+
+    with tab4:
+
+        st.subheader(
+            "Final Preprocessed Dataset"
+        )
+
+        st.dataframe(
+            preprocessed_df,
+            use_container_width=True
+        )
+
+        st.subheader(
+            "New Features"
+        )
+
+        new_features = [
+            "net_revenue_egp_outlier_flag",
+            "unit_price_egp_outlier_flag",
+            "quantity_outlier_flag",
+            "actual_delivery_days_outlier_flag",
+            "lead_time_days_outlier_flag",
+            "price_position",
+            "low_stock_flag"
+        ]
+
+        existing_features = [
+            col for col in new_features
+            if col in preprocessed_df.columns
+        ]
+
+        st.write(
+            existing_features
+        )
+
+    # =====================================================
+    # DOWNLOAD
+    # =====================================================
+
+    csv = (
+        preprocessed_df
+        .to_csv(
+            index=False
+        )
+        .encode(
+            "utf-8-sig"
+        )
+    )
+
+    st.download_button(
+        "⬇️ Download Preprocessed Dataset",
+        csv,
+        "Project1_Preprocessed_Features.csv",
+        "text/csv"
+    )
 
 # =========================
 # SIDEBAR
@@ -508,6 +923,7 @@ page = st.sidebar.radio(
     [
         "Home",
         "Data Cleaning",
+        "Preprocessing",
         "EDA",
         "Visualizations",
         "Machine Learning"
@@ -518,6 +934,9 @@ if page == "Home":
 
 elif page == "Data Cleaning":
     cleaning_page()
+
+elif page == "Preprocessing":
+    preprocessing_page()
 
 elif page == "EDA":
     st.title("📊 EDA")
