@@ -914,7 +914,741 @@ def preprocessing_page():
         "Project1_Preprocessed_Features.csv",
         "text/csv"
     )
+# =========================================================
+# EDA PAGE
+# =========================================================
 
+def eda_page():
+
+    st.title("📊 Exploratory Data Analysis (EDA)")
+
+    st.write(
+        "Univariate EDA for identifiers, dates & time, "
+        "categorical variables, numeric variables, "
+        "and return complaint text."
+    )
+
+    # =====================================================
+    # GET PREPROCESSED DATA
+    # =====================================================
+
+    if "preprocessed_df" in st.session_state:
+
+        df = st.session_state["preprocessed_df"].copy()
+
+        st.success(
+            "Using data from Preprocessing ✅"
+        )
+
+    else:
+
+        uploaded_file = st.file_uploader(
+            "Upload Project1_Preprocessed_Features.csv",
+            type=["csv"],
+            key="eda_file"
+        )
+
+        if uploaded_file is None:
+
+            st.info(
+                "Please run Preprocessing first "
+                "or upload Project1_Preprocessed_Features.csv."
+            )
+
+            return
+
+        df = pd.read_csv(uploaded_file)
+
+    # =====================================================
+    # EXTRA LIBRARIES
+    # =====================================================
+
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from collections import Counter
+
+    # =====================================================
+    # BASIC DATASET INFORMATION
+    # =====================================================
+
+    st.success("EDA dataset loaded successfully ✅")
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Rows", df.shape[0])
+    c2.metric("Columns", df.shape[1])
+    c3.metric("Duplicate Rows", int(df.duplicated().sum()))
+
+    # =====================================================
+    # TABS
+    # =====================================================
+
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "Identifiers",
+        "Dates & Time",
+        "Categorical",
+        "Numeric",
+        "Return Complaints"
+    ])
+
+    # =====================================================
+    # 1. IDENTIFIERS
+    # =====================================================
+
+    with tab1:
+
+        st.subheader("Identifier Univariate EDA")
+
+        id_cols = [
+            "order_id",
+            "customer_id",
+            "product_id"
+        ]
+
+        id_cols = [
+            col for col in id_cols
+            if col in df.columns
+        ]
+
+        identifier_summary = []
+
+        for col in id_cols:
+
+            total_count = len(df[col])
+
+            unique_count = df[col].nunique()
+
+            duplicate_count = (
+                total_count - unique_count
+            )
+
+            identifier_summary.append({
+                "Identifier": col,
+                "Total Rows": total_count,
+                "Unique Keys": unique_count,
+                "Duplicates": duplicate_count
+            })
+
+        st.dataframe(
+            pd.DataFrame(identifier_summary),
+            width="stretch",
+            hide_index=True
+        )
+
+        if id_cols:
+
+            selected_id = st.selectbox(
+                "Select Identifier",
+                id_cols,
+                key="eda_identifier"
+            )
+
+            st.write(
+                f"Top Repetitions: {selected_id}"
+            )
+
+            top_freq = (
+                df[selected_id]
+                .value_counts()
+                .head(10)
+            )
+
+            top_freq_df = pd.DataFrame({
+                selected_id: top_freq.index.astype(str),
+                "Order Count": top_freq.values
+            })
+
+            st.dataframe(
+                top_freq_df,
+                width="stretch",
+                hide_index=True
+            )
+
+            # Original notebook specifically visualized
+            # Top 10 Product IDs
+            if "product_id" in df.columns:
+
+                st.subheader(
+                    "Top 10 Most Frequent Product IDs"
+                )
+
+                top_products = (
+                    df["product_id"]
+                    .value_counts()
+                    .head(10)
+                )
+
+                fig, ax = plt.subplots(
+                    figsize=(10, 4)
+                )
+
+                sns.barplot(
+                    x=top_products.index.astype(str),
+                    y=top_products.values,
+                    ax=ax
+                )
+
+                ax.set_title(
+                    "Top 10 Most Frequent Product IDs",
+                    fontsize=12,
+                    fontweight="bold"
+                )
+
+                ax.set_xlabel("Product ID")
+                ax.set_ylabel("Order Count")
+
+                plt.xticks(rotation=45)
+                plt.tight_layout()
+
+                st.pyplot(fig)
+
+                plt.close(fig)
+
+    # =====================================================
+    # 2. DATES & TIME
+    # =====================================================
+
+    with tab2:
+
+        st.subheader(
+            "Dates & Time Univariate EDA"
+        )
+
+        if "order_date" in df.columns:
+
+            df["order_date"] = pd.to_datetime(
+                df["order_date"],
+                errors="coerce"
+            )
+
+            order_min = df["order_date"].min()
+            order_max = df["order_date"].max()
+
+            st.write(
+                f"**Order Date Range:** "
+                f"{order_min.date() if pd.notna(order_min) else 'N/A'} "
+                f"to "
+                f"{order_max.date() if pd.notna(order_max) else 'N/A'}"
+            )
+
+        if "return_request_date" in df.columns:
+
+            df["return_request_date"] = pd.to_datetime(
+                df["return_request_date"],
+                errors="coerce"
+            )
+
+            return_min = (
+                df["return_request_date"].min()
+            )
+
+            return_max = (
+                df["return_request_date"].max()
+            )
+
+            st.write(
+                f"**Return Date Range:** "
+                f"{return_min.date() if pd.notna(return_min) else 'N/A'} "
+                f"to "
+                f"{return_max.date() if pd.notna(return_max) else 'N/A'}"
+            )
+
+        # Monthly Order Trend
+        if "order_month" in df.columns:
+
+            st.subheader(
+                "Monthly Order Trend Distribution"
+            )
+
+            monthly_orders = (
+                df["order_month"]
+                .value_counts()
+                .sort_index()
+            )
+
+            fig, ax = plt.subplots(
+                figsize=(12, 4)
+            )
+
+            ax.plot(
+                monthly_orders.index,
+                monthly_orders.values,
+                marker="o",
+                linewidth=2
+            )
+
+            ax.set_title(
+                "Monthly Order Trend Distribution",
+                fontsize=12,
+                fontweight="bold"
+            )
+
+            ax.set_xlabel("Month")
+            ax.set_ylabel("Number of Orders")
+            ax.set_xticks(range(1, 13))
+            ax.grid(
+                True,
+                linestyle="--",
+                alpha=0.6
+            )
+
+            plt.tight_layout()
+
+            st.pyplot(fig)
+
+            plt.close(fig)
+
+        # Hourly Order Distribution
+        if "order_hour" in df.columns:
+
+            st.subheader(
+                "Hourly Order Frequency Distribution"
+            )
+
+            fig, ax = plt.subplots(
+                figsize=(10, 4)
+            )
+
+            sns.countplot(
+                data=df,
+                x="order_hour",
+                ax=ax
+            )
+
+            ax.set_title(
+                "Hourly Order Frequency Distribution",
+                fontsize=12,
+                fontweight="bold"
+            )
+
+            ax.set_xlabel(
+                "Hour of Day (0-23)"
+            )
+
+            ax.set_ylabel(
+                "Order Volume"
+            )
+
+            plt.tight_layout()
+
+            st.pyplot(fig)
+
+            plt.close(fig)
+
+    # =====================================================
+    # 3. CATEGORICAL VARIABLES
+    # =====================================================
+
+    with tab3:
+
+        st.subheader(
+            "Categorical Univariate EDA"
+        )
+
+        cat_cols = [
+            "customer_gender",
+            "customer_area",
+            "branch",
+            "sales_channel",
+            "product_domain",
+            "category",
+            "brand",
+            "payment_method",
+            "marketing_source",
+            "campaign_name",
+            "courier",
+            "delivery_status",
+            "returned",
+            "return_reason_category",
+            "refund_method",
+            "supplier",
+            "weather",
+            "season",
+            "customer_age_group",
+            "price_position",
+            "on_time_flag",
+            "low_stock_flag"
+        ]
+
+        cat_cols = [
+            col for col in cat_cols
+            if col in df.columns
+        ]
+
+        if cat_cols:
+
+            selected_cat = st.selectbox(
+                "Select Categorical Variable",
+                cat_cols,
+                key="eda_category"
+            )
+
+            counts = (
+                df[selected_cat]
+                .value_counts(
+                    dropna=False
+                )
+            )
+
+            percents = (
+                df[selected_cat]
+                .value_counts(
+                    dropna=False,
+                    normalize=True
+                )
+                * 100
+            )
+
+            summary = pd.DataFrame({
+                "Category": counts.index.astype(str),
+                "Count": counts.values,
+                "Percentage (%)": percents.values.round(2)
+            })
+
+            st.write(
+                f"Categorical Summary: {selected_cat}"
+            )
+
+            st.dataframe(
+                summary,
+                width="stretch",
+                hide_index=True
+            )
+
+            top_cat = counts.head(10)
+
+            fig, ax = plt.subplots(
+                figsize=(8, 4)
+            )
+
+            sns.barplot(
+                y=top_cat.index.astype(str),
+                x=top_cat.values,
+                ax=ax
+            )
+
+            ax.set_title(
+                f"Distribution of {selected_cat} "
+                "(Top Classes)",
+                fontsize=12,
+                fontweight="bold"
+            )
+
+            ax.set_xlabel("Frequency")
+            ax.set_ylabel(selected_cat)
+
+            for index, value in enumerate(
+                top_cat.values
+            ):
+
+                ax.text(
+                    value,
+                    index,
+                    f" {value} "
+                    f"({value / len(df) * 100:.1f}%)",
+                    va="center"
+                )
+
+            plt.tight_layout()
+
+            st.pyplot(fig)
+
+            plt.close(fig)
+
+    # =====================================================
+    # 4. NUMERIC VARIABLES
+    # =====================================================
+
+    with tab4:
+
+        st.subheader(
+            "Numeric Variables Univariate EDA"
+        )
+
+        num_cols = [
+            "customer_age",
+            "unit_price_egp",
+            "quantity",
+            "discount_percent",
+            "expected_delivery_days",
+            "actual_delivery_days",
+            "rating",
+            "stock_available_before_sale",
+            "lead_time_days",
+            "competitor_price_egp",
+            "gross_revenue_egp",
+            "discount_amount_egp",
+            "net_revenue_egp",
+            "delivery_delay_days",
+            "price_gap_egp",
+            "price_gap_percent",
+            "return_request_lag_days"
+        ]
+
+        num_cols = [
+            col for col in num_cols
+            if col in df.columns
+        ]
+
+        numeric_summary = []
+
+        for col in num_cols:
+
+            s = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            ).dropna()
+
+            if len(s) == 0:
+                continue
+
+            numeric_summary.append({
+                "Column": col,
+                "Count": int(s.count()),
+                "Missing": int(
+                    df[col].isna().sum()
+                ),
+                "Mean": round(
+                    s.mean(),
+                    2
+                ),
+                "Std": round(
+                    s.std(),
+                    2
+                ),
+                "Median": round(
+                    s.median(),
+                    2
+                ),
+                "Min": round(
+                    s.min(),
+                    2
+                ),
+                "Max": round(
+                    s.max(),
+                    2
+                ),
+                "Skewness": round(
+                    s.skew(),
+                    2
+                )
+            })
+
+        numeric_summary_df = pd.DataFrame(
+            numeric_summary
+        )
+
+        st.dataframe(
+            numeric_summary_df,
+            width="stretch",
+            hide_index=True
+        )
+
+        if num_cols:
+
+            selected_num = st.selectbox(
+                "Select Numeric Variable",
+                num_cols,
+                key="eda_numeric"
+            )
+
+            numeric_data = pd.to_numeric(
+                df[selected_num],
+                errors="coerce"
+            ).dropna()
+
+            if not numeric_data.empty:
+
+                fig, axes = plt.subplots(
+                    1,
+                    2,
+                    figsize=(12, 4)
+                )
+
+                # Histogram + KDE
+                sns.histplot(
+                    numeric_data,
+                    kde=True,
+                    bins=30,
+                    ax=axes[0]
+                )
+
+                axes[0].set_title(
+                    f"Histogram & KDE: "
+                    f"{selected_num}",
+                    fontsize=11,
+                    fontweight="bold"
+                )
+
+                axes[0].set_xlabel(
+                    selected_num
+                )
+
+                axes[0].set_ylabel(
+                    "Frequency"
+                )
+
+                # Box Plot
+                sns.boxplot(
+                    x=numeric_data,
+                    ax=axes[1]
+                )
+
+                axes[1].set_title(
+                    f"Box Plot (Outliers Check): "
+                    f"{selected_num}",
+                    fontsize=11,
+                    fontweight="bold"
+                )
+
+                axes[1].set_xlabel(
+                    selected_num
+                )
+
+                plt.tight_layout()
+
+                st.pyplot(fig)
+
+                plt.close(fig)
+
+    # =====================================================
+    # 5. RETURN COMPLAINT TEXT ANALYSIS
+    # =====================================================
+
+    with tab5:
+
+        st.subheader(
+            "Return Complaint Text Analysis"
+        )
+
+        if "return_complaint_text" not in df.columns:
+
+            st.info(
+                "return_complaint_text column "
+                "is not available."
+            )
+
+        else:
+
+            text_data = (
+                df["return_complaint_text"]
+                .dropna()
+            )
+
+            c1, c2 = st.columns(2)
+
+            c1.metric(
+                "Complaint Records",
+                len(text_data)
+            )
+
+            c2.metric(
+                "Missing Complaint Records",
+                int(
+                    df["return_complaint_text"]
+                    .isna()
+                    .sum()
+                )
+            )
+
+            if len(text_data) > 0:
+
+                words = [
+                    w.lower().strip(
+                        ".,!?:;-"
+                    )
+                    for text in text_data
+                    for w in str(text).split()
+                    if len(w) > 2
+                ]
+
+                top_words_df = pd.DataFrame(
+                    Counter(words).most_common(15),
+                    columns=[
+                        "Word",
+                        "Frequency"
+                    ]
+                )
+
+                # Arabic display support
+                try:
+
+                    import arabic_reshaper
+                    from bidi.algorithm import get_display
+
+                    def fix_arabic(text):
+
+                        if isinstance(
+                            text,
+                            str
+                        ):
+
+                            reshaped = (
+                                arabic_reshaper
+                                .reshape(text)
+                            )
+
+                            return get_display(
+                                reshaped
+                            )
+
+                        return text
+
+                    top_words_df[
+                        "Word Display"
+                    ] = (
+                        top_words_df["Word"]
+                        .apply(fix_arabic)
+                    )
+
+                except ImportError:
+
+                    top_words_df[
+                        "Word Display"
+                    ] = top_words_df["Word"]
+
+                st.write(
+                    "Top 15 Most Frequent Words "
+                    "in Return Complaints"
+                )
+
+                st.dataframe(
+                    top_words_df[
+                        [
+                            "Word",
+                            "Frequency"
+                        ]
+                    ],
+                    width="stretch",
+                    hide_index=True
+                )
+
+                fig, ax = plt.subplots(
+                    figsize=(10, 5)
+                )
+
+                sns.barplot(
+                    data=top_words_df,
+                    x="Frequency",
+                    y="Word Display",
+                    ax=ax
+                )
+
+                ax.set_title(
+                    "Top 15 Most Frequent Words "
+                    "in Return Complaints",
+                    fontsize=12,
+                    fontweight="bold"
+                )
+
+                ax.set_xlabel("Frequency")
+                ax.set_ylabel("Word")
+
+                plt.tight_layout()
+
+                st.pyplot(fig)
+
+                plt.close(fig)
 # =========================
 # SIDEBAR
 # =========================
@@ -939,8 +1673,7 @@ elif page == "Preprocessing":
     preprocessing_page()
 
 elif page == "EDA":
-    st.title("📊 EDA")
-    st.info("EDA will be added later.")
+    eda_page()
 
 elif page == "Visualizations":
     st.title("📈 Visualizations")
