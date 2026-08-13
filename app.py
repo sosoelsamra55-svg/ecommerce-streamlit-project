@@ -1659,8 +1659,7 @@ def visualizations_page():
     st.title("📈 Project Visualizations")
 
     st.write(
-        "This section contains Abdullah's 15 visualizations. "
-        "Dina's remaining 15 visualizations will be added later."
+        "This section contains all 30 project visualizations: Abdullah's 15 and Dina's 15."
     )
 
     # Get preprocessed data
@@ -1705,7 +1704,22 @@ def visualizations_page():
         "12. Discount Percent vs Quantity",
         "13. Discount Percent vs Net Revenue",
         "14. Unit Price vs Competitor Price",
-        "15. Price Gap vs Quantity Sold"
+        "15. Price Gap vs Quantity Sold",
+        "16. Payment Method vs Average Order Value",
+        "17. Marketing Source vs Net Revenue",
+        "18. Campaign Name vs Net Revenue",
+        "19. Campaign Name vs Return Rate",
+        "20. Courier vs Actual Delivery Days",
+        "21. Courier vs On-Time Delivery Rate",
+        "22. Expected vs Actual Delivery Days",
+        "23. Delivery Delay vs Rating",
+        "24. Returned Status vs Rating",
+        "25. Return Reason vs Product Category",
+        "26. Return Reason vs Refund Method",
+        "27. Supplier vs Lead Time",
+        "28. Stock Before Sale vs Quantity",
+        "29. Weather vs Delivery Delay",
+        "30. Season vs Net Revenue"
     ]
 
     selected = st.selectbox(
@@ -2310,7 +2324,574 @@ def visualizations_page():
 
         plt.tight_layout()
         st.pyplot(fig)
-        plt.close(fig)                
+        plt.close(fig)             
+
+        # 16
+    elif selected.startswith("16."):
+        payment_perf = df.groupby("payment_method").agg(
+            avg_order_value=("net_revenue_egp", "mean"),
+            total_net_revenue=("net_revenue_egp", "sum"),
+            order_count=("order_id", "count")
+        ).reset_index().sort_values("avg_order_value", ascending=False)
+
+        st.subheader("Payment Method vs Average Order Value")
+        st.dataframe(payment_perf, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+        sns.barplot(
+            data=payment_perf,
+            x="payment_method",
+            y="avg_order_value",
+            ax=ax
+        )
+
+        for i, row in payment_perf.reset_index(drop=True).iterrows():
+            ax.text(
+                i,
+                row["avg_order_value"],
+                f"n={row['order_count']}",
+                ha="center",
+                va="bottom",
+                fontsize=9
+            )
+
+        ax.set_title("Average Order Value by Payment Method")
+        ax.set_xlabel("Payment Method")
+        ax.set_ylabel("Average Order Value (EGP)")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 17
+    elif selected.startswith("17."):
+        marketing_perf = df.groupby("marketing_source").agg(
+            total_net_revenue=("net_revenue_egp", "sum"),
+            order_count=("order_id", "count"),
+            avg_order_value=("net_revenue_egp", "mean")
+        ).reset_index().sort_values("total_net_revenue", ascending=False)
+
+        st.subheader("Marketing Source vs Net Revenue")
+        st.dataframe(marketing_perf, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        sns.barplot(
+            data=marketing_perf,
+            x="marketing_source",
+            y="total_net_revenue",
+            order=marketing_perf["marketing_source"],
+            ax=ax
+        )
+
+        ax.set_title("Total Net Revenue by Marketing Source")
+        ax.set_xlabel("Marketing Source")
+        ax.set_ylabel("Total Net Revenue (EGP)")
+        plt.xticks(rotation=30, ha="right")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 18
+    elif selected.startswith("18."):
+        campaign_perf = df.groupby("campaign_name").agg(
+            total_net_revenue=("net_revenue_egp", "sum"),
+            order_count=("order_id", "count")
+        ).reset_index()
+
+        campaign_perf["is_campaign"] = (
+            campaign_perf["campaign_name"] != "No Campaign"
+        )
+
+        campaign_perf = campaign_perf.sort_values(
+            "total_net_revenue",
+            ascending=False
+        )
+
+        st.subheader("Campaign Name vs Net Revenue")
+        st.dataframe(campaign_perf, hide_index=True)
+
+        top_campaigns = campaign_perf.head(10).sort_values(
+            "total_net_revenue"
+        )
+
+        fig, ax = plt.subplots(figsize=(9, 6))
+        ax.barh(
+            top_campaigns["campaign_name"],
+            top_campaigns["total_net_revenue"]
+        )
+
+        ax.set_title("Top Campaigns by Net Revenue")
+        ax.set_xlabel("Total Net Revenue (EGP)")
+        ax.set_ylabel("Campaign Name")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 19
+    elif selected.startswith("19."):
+        campaign_returns = df.groupby("campaign_name").agg(
+            order_count=("order_id", "count"),
+            return_rate=("returned_flag", "mean")
+        ).reset_index()
+
+        campaign_returns_filtered = campaign_returns[
+            campaign_returns["order_count"] >= 30
+        ].sort_values("return_rate", ascending=False)
+
+        st.subheader("Campaign Name vs Return Rate")
+        st.caption("Minimum threshold = 30 orders")
+        st.dataframe(campaign_returns_filtered, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+        sns.barplot(
+            data=campaign_returns_filtered,
+            x="campaign_name",
+            y="return_rate",
+            ax=ax
+        )
+
+        ax.set_title("Return Rate by Campaign (Min 30 Orders)")
+        ax.set_xlabel("Campaign Name")
+        ax.set_ylabel("Return Rate")
+        ax.yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda x, _: f"{x:.0%}")
+        )
+
+        plt.xticks(rotation=30, ha="right")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 20
+    elif selected.startswith("20."):
+        courier_df = df.dropna(subset=["courier"])
+
+        courier_delivery = (
+            courier_df.groupby("courier")["actual_delivery_days"]
+            .median()
+            .sort_values()
+        )
+
+        st.subheader("Courier vs Actual Delivery Days")
+
+        st.dataframe(
+            courier_df.groupby("courier")[
+                "actual_delivery_days"
+            ].describe()
+        )
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+        sns.boxplot(
+            data=courier_df,
+            x="courier",
+            y="actual_delivery_days",
+            order=courier_delivery.index,
+            ax=ax
+        )
+
+        ax.set_title("Distribution of Actual Delivery Days by Courier")
+        ax.set_xlabel("Courier")
+        ax.set_ylabel("Actual Delivery Days")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 21
+    elif selected.startswith("21."):
+        courier_df = df.dropna(subset=["courier"])
+
+        courier_ontime = courier_df.groupby("courier").agg(
+            order_count=("order_id", "count"),
+            on_time_rate=("on_time_flag", "mean")
+        ).reset_index().sort_values(
+            "on_time_rate",
+            ascending=False
+        )
+
+        st.subheader("Courier vs On-Time Delivery Rate")
+        st.dataframe(courier_ontime, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+        sns.barplot(
+            data=courier_ontime,
+            x="courier",
+            y="on_time_rate",
+            ax=ax
+        )
+
+        for i, row in courier_ontime.reset_index(drop=True).iterrows():
+            ax.text(
+                i,
+                row["on_time_rate"],
+                f"n={row['order_count']}",
+                ha="center",
+                va="bottom",
+                fontsize=9
+            )
+
+        ax.set_title("On-Time Delivery Rate by Courier")
+        ax.set_xlabel("Courier")
+        ax.set_ylabel("On-Time Rate")
+        ax.yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda x, _: f"{x:.0%}")
+        )
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 22
+    elif selected.startswith("22."):
+        st.subheader("Expected vs Actual Delivery Days")
+
+        st.dataframe(
+            df[
+                [
+                    "expected_delivery_days",
+                    "actual_delivery_days"
+                ]
+            ].describe()
+        )
+
+        early = (
+            df["actual_delivery_days"]
+            < df["expected_delivery_days"]
+        ).mean()
+
+        on_time = (
+            df["actual_delivery_days"]
+            == df["expected_delivery_days"]
+        ).mean()
+
+        late = (
+            df["actual_delivery_days"]
+            > df["expected_delivery_days"]
+        ).mean()
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Early", f"{early:.1%}")
+        c2.metric("On Time", f"{on_time:.1%}")
+        c3.metric("Late", f"{late:.1%}")
+
+        fig, ax = plt.subplots(figsize=(7, 7))
+
+        ax.scatter(
+            df["expected_delivery_days"],
+            df["actual_delivery_days"],
+            alpha=0.3,
+            s=15
+        )
+
+        max_val = max(
+            df["expected_delivery_days"].max(),
+            df["actual_delivery_days"].max()
+        )
+
+        ax.plot(
+            [0, max_val],
+            [0, max_val],
+            linestyle="--",
+            label="y = x (Perfectly On Time)"
+        )
+
+        ax.set_title("Expected vs Actual Delivery Days")
+        ax.set_xlabel("Expected Delivery Days")
+        ax.set_ylabel("Actual Delivery Days")
+        ax.legend()
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 23
+    elif selected.startswith("23."):
+        rating_data = df.dropna(subset=["rating"]).copy()
+
+        rating_data["delay_group"] = pd.cut(
+            rating_data["delivery_delay_days"],
+            bins=[-100, -0.001, 0, 2, 100],
+            labels=[
+                "Early",
+                "On Time",
+                "Late (1-2 Days)",
+                "Late (3+ Days)"
+            ]
+        )
+
+        rating_summary = rating_data.groupby(
+            "delay_group",
+            observed=True
+        )["rating"].agg(["mean", "count"])
+
+        st.subheader("Delivery Delay vs Rating")
+        st.dataframe(rating_summary)
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+
+        sns.boxplot(
+            data=rating_data,
+            x="delay_group",
+            y="rating",
+            ax=ax
+        )
+
+        ax.set_title("Customer Rating by Delivery Delay Group")
+        ax.set_xlabel("Delivery Delay Group")
+        ax.set_ylabel("Rating")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 24
+    elif selected.startswith("24."):
+        returned_rating = df.groupby("returned").agg(
+            avg_rating=("rating", "mean"),
+            order_count=("order_id", "count"),
+            rating_missing=(
+                "rating",
+                lambda s: s.isna().sum()
+            )
+        ).reset_index()
+
+        st.subheader("Returned Status vs Rating")
+        st.dataframe(returned_rating, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(7, 5))
+
+        sns.boxplot(
+            data=df,
+            x="returned",
+            y="rating",
+            ax=ax
+        )
+
+        ax.set_title(
+            "Rating Distribution: Returned vs Not Returned Orders"
+        )
+        ax.set_xlabel("Returned")
+        ax.set_ylabel("Rating")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 25
+    elif selected.startswith("25."):
+        returned_only = df.dropna(
+            subset=["return_reason_category"]
+        )
+
+        reason_category_ct = pd.crosstab(
+            returned_only["return_reason_category"],
+            returned_only["category"]
+        )
+
+        reason_category_pct = pd.crosstab(
+            returned_only["return_reason_category"],
+            returned_only["category"],
+            normalize="index"
+        ) * 100
+
+        st.subheader("Return Reason vs Product Category")
+        st.dataframe(reason_category_ct)
+
+        fig, ax = plt.subplots(figsize=(11, 7))
+
+        sns.heatmap(
+            reason_category_pct,
+            annot=True,
+            fmt=".0f",
+            cmap="YlOrRd",
+            cbar_kws={"label": "% of Reason (Row)"},
+            ax=ax
+        )
+
+        ax.set_title("Return Reason vs Product Category (Row %)")
+        ax.set_xlabel("Category")
+        ax.set_ylabel("Return Reason")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 26
+    elif selected.startswith("26."):
+        returned_only = df.dropna(
+            subset=["return_reason_category"]
+        )
+
+        refund_ct = pd.crosstab(
+            returned_only["return_reason_category"],
+            returned_only["refund_method"],
+            normalize="index"
+        ) * 100
+
+        st.subheader("Return Reason vs Refund Method")
+        st.dataframe(refund_ct.round(1))
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        refund_ct.plot(
+            kind="bar",
+            stacked=True,
+            ax=ax
+        )
+
+        ax.set_title(
+            "Refund Method Share by Return Reason (100% Stacked)"
+        )
+        ax.set_xlabel("Return Reason")
+        ax.set_ylabel("Share of Refund Method (%)")
+
+        plt.xticks(rotation=30, ha="right")
+        ax.legend(
+            title="Refund Method",
+            bbox_to_anchor=(1.02, 1),
+            loc="upper left"
+        )
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 27
+    elif selected.startswith("27."):
+        supplier_lead = df.groupby("supplier").agg(
+            median_lead_time=("lead_time_days", "median"),
+            order_count=("order_id", "count")
+        ).reset_index().sort_values(
+            "median_lead_time"
+        )
+
+        st.subheader("Supplier vs Lead Time")
+        st.dataframe(supplier_lead, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+
+        sns.boxplot(
+            data=df,
+            x="supplier",
+            y="lead_time_days",
+            order=supplier_lead["supplier"],
+            ax=ax
+        )
+
+        ax.set_title("Lead Time Distribution by Supplier")
+        ax.set_xlabel("Supplier")
+        ax.set_ylabel("Lead Time (Days)")
+
+        plt.xticks(rotation=20, ha="right")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 28
+    elif selected.startswith("28."):
+        st.subheader("Stock Before Sale vs Quantity")
+
+        st.dataframe(
+            df[
+                [
+                    "stock_available_before_sale",
+                    "quantity"
+                ]
+            ].describe()
+        )
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        sns.scatterplot(
+            data=df,
+            x="stock_available_before_sale",
+            y="quantity",
+            hue="low_stock_flag",
+            alpha=0.4,
+            s=20,
+            ax=ax
+        )
+
+        ax.set_title(
+            "Stock Available Before Sale vs Order Quantity"
+        )
+        ax.set_xlabel("Stock Available Before Sale")
+        ax.set_ylabel("Order Quantity")
+        ax.legend(title="Low Stock Flag")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 29
+    elif selected.startswith("29."):
+        weather_delay = df.groupby("weather").agg(
+            avg_delay=("delivery_delay_days", "mean"),
+            order_count=("order_id", "count")
+        ).reset_index().sort_values(
+            "avg_delay",
+            ascending=False
+        )
+
+        st.subheader("Weather vs Delivery Delay")
+        st.dataframe(weather_delay, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        sns.boxplot(
+            data=df,
+            x="weather",
+            y="delivery_delay_days",
+            order=weather_delay["weather"],
+            ax=ax
+        )
+
+        ax.set_title("Delivery Delay by Weather Condition")
+        ax.set_xlabel("Weather")
+        ax.set_ylabel("Delivery Delay (Days)")
+        ax.axhline(
+            0,
+            linestyle="--",
+            linewidth=1
+        )
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 30
+    elif selected.startswith("30."):
+        season_order = [
+            "Winter",
+            "Spring",
+            "Summer",
+            "Autumn"
+        ]
+
+        season_perf = df.groupby("season").agg(
+            total_net_revenue=("net_revenue_egp", "sum"),
+            order_count=("order_id", "count"),
+            avg_order_value=("net_revenue_egp", "mean")
+        ).reindex(season_order).reset_index()
+
+        st.subheader("Season vs Net Revenue")
+        st.dataframe(season_perf, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        sns.barplot(
+            data=season_perf,
+            x="season",
+            y="total_net_revenue",
+            order=season_order,
+            ax=ax
+        )
+
+        ax.set_title("Total Net Revenue by Season")
+        ax.set_xlabel("Season")
+        ax.set_ylabel("Total Net Revenue (EGP)")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)   
 # =========================
 # SIDEBAR
 # =========================
