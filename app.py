@@ -1649,6 +1649,668 @@ def eda_page():
                 st.pyplot(fig)
 
                 plt.close(fig)
+
+# =========================================================
+# VISUALIZATIONS PAGE - ABDULLAH (1-15)
+# =========================================================
+
+def visualizations_page():
+
+    st.title("📈 Project Visualizations")
+
+    st.write(
+        "This section contains Abdullah's 15 visualizations. "
+        "Dina's remaining 15 visualizations will be added later."
+    )
+
+    # Get preprocessed data
+    if "preprocessed_df" in st.session_state:
+        df = st.session_state["preprocessed_df"].copy()
+        st.success("Using data from Preprocessing ✅")
+
+    else:
+        uploaded_file = st.file_uploader(
+            "Upload Project1_Preprocessed_Features.csv",
+            type=["csv"],
+            key="visualizations_file"
+        )
+
+        if uploaded_file is None:
+            st.info(
+                "Please run Preprocessing first or upload "
+                "Project1_Preprocessed_Features.csv."
+            )
+            return
+
+        df = pd.read_csv(uploaded_file)
+
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    sns.set_palette("tab10")
+
+    visualizations = [
+        "1. Customer Gender vs Net Revenue",
+        "2. Customer Age Group vs Average Order Value",
+        "3. Customer Area vs Number of Orders",
+        "4. Customer Area vs Return Rate",
+        "5. Branch vs Net Revenue",
+        "6. Sales Channel vs Net Revenue",
+        "7. Product Domain vs Net Revenue",
+        "8. Category vs Quantity Sold",
+        "9. Brand vs Net Revenue",
+        "10. Product Name vs Customer Rating",
+        "11. Unit Price vs Quantity",
+        "12. Discount Percent vs Quantity",
+        "13. Discount Percent vs Net Revenue",
+        "14. Unit Price vs Competitor Price",
+        "15. Price Gap vs Quantity Sold"
+    ]
+
+    selected = st.selectbox(
+        "Choose a visualization",
+        visualizations
+    )
+
+    # 1
+    if selected.startswith("1."):
+
+        gender_perf = df.groupby("customer_gender").agg(
+            total_net_revenue=("net_revenue_egp", "sum"),
+            avg_order_value=("net_revenue_egp", "mean"),
+            order_count=("order_id", "count")
+        ).reset_index()
+
+        st.subheader("Customer Gender vs Net Revenue")
+        st.dataframe(gender_perf, hide_index=True)
+
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+        sns.barplot(
+            data=gender_perf,
+            x="customer_gender",
+            y="total_net_revenue",
+            ax=axes[0]
+        )
+
+        axes[0].set_title("Total Net Revenue by Gender")
+        axes[0].set_ylabel("Total Net Revenue (EGP)")
+
+        sns.barplot(
+            data=gender_perf,
+            x="customer_gender",
+            y="avg_order_value",
+            ax=axes[1]
+        )
+
+        axes[1].set_title("Average Order Value by Gender")
+        axes[1].set_ylabel("AOV (EGP)")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 2
+    elif selected.startswith("2."):
+
+        age_perf = df.groupby(
+            "customer_age_group",
+            observed=False
+        ).agg(
+            avg_order_value=("net_revenue_egp", "mean"),
+            sample_size=("order_id", "count")
+        ).reset_index()
+
+        st.subheader("Customer Age Group vs Average Order Value")
+        st.dataframe(age_perf, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+
+        sns.barplot(
+            data=age_perf,
+            x="customer_age_group",
+            y="avg_order_value",
+            ax=ax
+        )
+
+        ax.set_title("Average Order Value by Customer Age Group")
+        ax.set_xlabel("Age Group")
+        ax.set_ylabel("Average Order Value (EGP)")
+
+        plt.xticks(rotation=30)
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 3
+    elif selected.startswith("3."):
+
+        area_orders = df["customer_area"].value_counts().reset_index()
+        area_orders.columns = ["customer_area", "order_count"]
+
+        area_orders["percentage"] = (
+            area_orders["order_count"]
+            / area_orders["order_count"].sum()
+        ) * 100
+
+        top_areas = area_orders.head(10)
+
+        st.subheader("Customer Area vs Number of Orders")
+        st.dataframe(top_areas, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        sns.barplot(
+            data=top_areas,
+            y="customer_area",
+            x="order_count",
+            ax=ax
+        )
+
+        ax.set_title("Top 10 Customer Areas by Number of Orders")
+        ax.set_xlabel("Order Count")
+        ax.set_ylabel("Customer Area")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 4
+    elif selected.startswith("4."):
+
+        area_returns = df.groupby("customer_area").agg(
+            order_count=("order_id", "count"),
+            return_rate=("returned_flag", "mean")
+        ).reset_index()
+
+        area_filtered = area_returns[
+            area_returns["order_count"] >= 30
+        ].sort_values(
+            "return_rate",
+            ascending=False
+        )
+
+        top_areas = area_filtered.head(10)
+
+        st.subheader("Customer Area vs Return Rate")
+        st.caption("Minimum threshold = 30 orders")
+        st.dataframe(top_areas, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        sns.barplot(
+            data=top_areas,
+            y="customer_area",
+            x="return_rate",
+            ax=ax
+        )
+
+        ax.set_title(
+            "Top Customer Areas by Return Rate (Min 30 Orders)"
+        )
+
+        ax.set_xlabel("Return Rate")
+        ax.set_ylabel("Customer Area")
+
+        ax.xaxis.set_major_formatter(
+            plt.FuncFormatter(
+                lambda x, _: f"{x:.0%}"
+            )
+        )
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 5
+    elif selected.startswith("5."):
+
+        branch_perf = df.groupby("branch").agg(
+            total_net_revenue=("net_revenue_egp", "sum"),
+            order_count=("order_id", "count"),
+            avg_order_value=("net_revenue_egp", "mean")
+        ).reset_index().sort_values(
+            "total_net_revenue",
+            ascending=False
+        )
+
+        st.subheader("Branch vs Net Revenue")
+        st.dataframe(branch_perf, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+
+        sns.barplot(
+            data=branch_perf,
+            x="branch",
+            y="total_net_revenue",
+            ax=ax
+        )
+
+        ax.set_title("Total Net Revenue by Branch")
+        ax.set_xlabel("Branch")
+        ax.set_ylabel("Total Net Revenue (EGP)")
+
+        plt.xticks(rotation=30)
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 6
+    elif selected.startswith("6."):
+
+        channel_perf = df.groupby("sales_channel").agg(
+            total_net_revenue=("net_revenue_egp", "sum"),
+            order_count=("order_id", "count"),
+            avg_order_value=("net_revenue_egp", "mean")
+        ).reset_index()
+
+        st.subheader("Sales Channel vs Net Revenue")
+        st.dataframe(channel_perf, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        sns.barplot(
+            data=channel_perf,
+            x="sales_channel",
+            y="total_net_revenue",
+            ax=ax
+        )
+
+        ax.set_title("Total Net Revenue by Sales Channel")
+        ax.set_xlabel("Sales Channel")
+        ax.set_ylabel("Total Net Revenue (EGP)")
+
+        for p in ax.patches:
+            ax.annotate(
+                f"{p.get_height():,.0f}",
+                (
+                    p.get_x() + p.get_width() / 2,
+                    p.get_height()
+                ),
+                ha="center",
+                va="bottom"
+            )
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 7
+    elif selected.startswith("7."):
+
+        domain_perf = df.groupby("product_domain").agg(
+            total_net_revenue=("net_revenue_egp", "sum"),
+            total_quantity=("quantity", "sum")
+        ).reset_index().sort_values(
+            "total_net_revenue",
+            ascending=False
+        )
+
+        st.subheader("Product Domain vs Net Revenue")
+        st.dataframe(domain_perf, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+
+        sns.barplot(
+            data=domain_perf,
+            x="product_domain",
+            y="total_net_revenue",
+            ax=ax
+        )
+
+        ax.set_title("Total Net Revenue by Product Domain")
+        ax.set_xlabel("Product Domain")
+        ax.set_ylabel("Net Revenue (EGP)")
+
+        plt.xticks(rotation=30)
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 8
+    elif selected.startswith("8."):
+
+        cat_perf = df.groupby("category").agg(
+            total_quantity=("quantity", "sum"),
+            total_net_revenue=("net_revenue_egp", "sum")
+        ).reset_index().sort_values(
+            "total_quantity",
+            ascending=False
+        )
+
+        st.subheader("Category vs Quantity Sold")
+        st.dataframe(cat_perf, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        sns.barplot(
+            data=cat_perf,
+            y="category",
+            x="total_quantity",
+            ax=ax
+        )
+
+        ax.set_title(
+            "Total Quantity Sold by Product Category"
+        )
+
+        ax.set_xlabel("Quantity Sold")
+        ax.set_ylabel("Category")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 9
+    elif selected.startswith("9."):
+
+        brand_perf = df.groupby("brand").agg(
+            total_net_revenue=("net_revenue_egp", "sum"),
+            avg_rating=("rating", "mean"),
+            order_count=("order_id", "count")
+        ).reset_index()
+
+        top_brands = brand_perf[
+            brand_perf["order_count"] >= 10
+        ].sort_values(
+            "total_net_revenue",
+            ascending=False
+        ).head(10)
+
+        st.subheader("Brand vs Net Revenue")
+        st.caption("Minimum 10 orders")
+        st.dataframe(top_brands, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+
+        sns.barplot(
+            data=top_brands,
+            y="brand",
+            x="total_net_revenue",
+            ax=ax
+        )
+
+        ax.set_title(
+            "Top 10 Brands by Net Revenue"
+        )
+
+        ax.set_xlabel("Net Revenue (EGP)")
+        ax.set_ylabel("Brand")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 10
+    elif selected.startswith("10."):
+
+        prod_rating = df.groupby("product_name").agg(
+            avg_rating=("rating", "mean"),
+            review_count=("rating", "count")
+        ).reset_index()
+
+        top_rated_prods = prod_rating[
+            prod_rating["review_count"] >= 15
+        ].sort_values(
+            "avg_rating",
+            ascending=False
+        ).head(10)
+
+        st.subheader("Product Name vs Customer Rating")
+        st.caption("Minimum 15 reviews")
+        st.dataframe(top_rated_prods, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+
+        sns.barplot(
+            data=top_rated_prods,
+            y="product_name",
+            x="avg_rating",
+            ax=ax
+        )
+
+        ax.set_title(
+            "Top Rated Products (Min 15 Reviews)"
+        )
+
+        ax.set_xlabel("Average Rating")
+        ax.set_ylabel("Product Name")
+        ax.set_xlim(1, 5)
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 11
+    elif selected.startswith("11."):
+
+        st.subheader("Unit Price vs Quantity")
+
+        st.dataframe(
+            df[
+                ["unit_price_egp", "quantity"]
+            ].describe()
+        )
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+
+        sns.scatterplot(
+            data=df,
+            x="unit_price_egp",
+            y="quantity",
+            alpha=0.5,
+            ax=ax
+        )
+
+        ax.set_title("Unit Price vs Order Quantity")
+        ax.set_xlabel("Unit Price (EGP)")
+        ax.set_ylabel("Quantity")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 12
+    elif selected.startswith("12."):
+
+        discount_summary = (
+            df.groupby("discount_percent")["quantity"]
+            .agg(
+                ["mean", "median", "count"]
+            )
+            .reset_index()
+        )
+
+        st.subheader("Discount Percent vs Quantity")
+        st.dataframe(discount_summary, hide_index=True)
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+
+        sns.scatterplot(
+            data=df,
+            x="discount_percent",
+            y="quantity",
+            alpha=0.4,
+            ax=ax
+        )
+
+        ax.set_title(
+            "Discount Percent vs Quantity Sold"
+        )
+
+        ax.set_xlabel("Discount Percent")
+        ax.set_ylabel("Quantity")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 13
+    elif selected.startswith("13."):
+
+        corr_val = df[
+            "discount_percent"
+        ].corr(
+            df["net_revenue_egp"]
+        )
+
+        st.subheader(
+            "Discount Percent vs Net Revenue"
+        )
+
+        st.metric(
+            "Correlation",
+            f"{corr_val:.4f}"
+        )
+
+        fig, ax = plt.subplots(figsize=(9, 5))
+
+        sns.regplot(
+            data=df,
+            x="discount_percent",
+            y="net_revenue_egp",
+            scatter_kws={"alpha": 0.3},
+            line_kws={"color": "red"},
+            ax=ax
+        )
+
+        ax.set_title(
+            "Discount Percent vs Net Revenue"
+        )
+
+        ax.set_xlabel("Discount Percent")
+        ax.set_ylabel("Net Revenue (EGP)")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 14
+    elif selected.startswith("14."):
+
+        comp_df = df.dropna(
+            subset=[
+                "competitor_price_egp",
+                "unit_price_egp"
+            ]
+        )
+
+        st.subheader(
+            "Unit Price vs Competitor Price"
+        )
+
+        st.dataframe(
+            comp_df[
+                [
+                    "unit_price_egp",
+                    "competitor_price_egp"
+                ]
+            ].describe()
+        )
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+
+        sns.scatterplot(
+            data=comp_df,
+            x="competitor_price_egp",
+            y="unit_price_egp",
+            alpha=0.5,
+            ax=ax
+        )
+
+        max_val = max(
+            comp_df["competitor_price_egp"].max(),
+            comp_df["unit_price_egp"].max()
+        )
+
+        ax.plot(
+            [0, max_val],
+            [0, max_val],
+            "r--",
+            label="Equal Price Baseline"
+        )
+
+        ax.set_title(
+            "Unit Price vs Competitor Price"
+        )
+
+        ax.set_xlabel(
+            "Competitor Price (EGP)"
+        )
+
+        ax.set_ylabel(
+            "Unit Price (EGP)"
+        )
+
+        ax.legend()
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 15
+    elif selected.startswith("15."):
+
+        vis_df = df.copy()
+
+        vis_df["price_position"] = np.select(
+            [
+                vis_df["price_gap_egp"] < 0,
+                vis_df["price_gap_egp"] == 0,
+                vis_df["price_gap_egp"] > 0
+            ],
+            [
+                "Below Competitor",
+                "Equal",
+                "Above Competitor"
+            ],
+            default="Unknown"
+        )
+
+        price_pos_summary = (
+            vis_df.groupby(
+                "price_position"
+            )["quantity"]
+            .agg(
+                ["sum", "mean", "count"]
+            )
+            .reset_index()
+        )
+
+        st.subheader(
+            "Price Gap vs Quantity Sold"
+        )
+
+        st.dataframe(
+            price_pos_summary,
+            hide_index=True
+        )
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        sns.barplot(
+            data=price_pos_summary,
+            x="price_position",
+            y="mean",
+            ax=ax
+        )
+
+        ax.set_title(
+            "Average Order Quantity by Competitive Price Position"
+        )
+
+        ax.set_xlabel(
+            "Price Position Relative to Competitor"
+        )
+
+        ax.set_ylabel(
+            "Average Order Quantity"
+        )
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)                
 # =========================
 # SIDEBAR
 # =========================
@@ -1676,8 +2338,7 @@ elif page == "EDA":
     eda_page()
 
 elif page == "Visualizations":
-    st.title("📈 Visualizations")
-    st.info("Visualizations will be added later.")
+  visualizations_page()
 
 elif page == "Machine Learning":
     st.title("🤖 Machine Learning")
