@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 st.set_page_config(
     page_title="E-Commerce Project",
     page_icon="🛒",
@@ -2891,7 +2895,87 @@ def visualizations_page():
 
         plt.tight_layout()
         st.pyplot(fig)
-        plt.close(fig)   
+        plt.close(fig) 
+
+def machine_learning_page():
+        st.title("🤖 Machine Learning - Linear Regression")
+        st.write("Predicting Net Revenue (EGP) using the preprocessed dataset.")
+        ml_df = None
+
+        if "preprocessed_df" in st.session_state:
+            st.success("Using the preprocessed dataset from the Preprocessing page ✅")
+            ml_df = st.session_state["preprocessed_df"].copy()
+        else:
+            uploaded_ml = st.file_uploader(
+                "Upload Project1_Preprocessed_Features.csv",
+                type=["csv"],
+                key="ml_upload"
+            )
+
+            if uploaded_ml is not None:
+                ml_df = pd.read_csv(uploaded_ml)
+
+        if ml_df is None:
+            st.info("Run Preprocessing first or upload Project1_Preprocessed_Features.csv.")
+            return  
+        feature_columns = [
+                'unit_price_egp', 'quantity', 'discount_percent',
+                'customer_gender', 'customer_age', 'customer_age_group',
+                'customer_area', 'branch', 'sales_channel',
+                'product_domain', 'category', 'brand',
+                'payment_method', 'marketing_source',
+                'competitor_price_egp', 'price_gap_egp',
+                'price_gap_percent', 'price_position',
+                'weather', 'season',
+                'order_month', 'order_quarter',
+                'order_weekday', 'order_hour'
+            ]
+
+        X = ml_df[feature_columns]
+        y = ml_df["net_revenue_egp"]
+        categorical_cols = X.select_dtypes(
+                include=["object", "string", "category"]
+            ).columns.tolist()
+
+        preprocessor = ColumnTransformer(
+            transformers=[
+                (
+                    "cat",
+                    OneHotEncoder(drop="first", handle_unknown="ignore"),
+                    categorical_cols
+                )
+            ],
+            remainder="passthrough"
+        )
+
+        X_encoded = preprocessor.fit_transform(X)
+        X_train, X_test, y_train, y_test = train_test_split(
+                X_encoded,
+                y,
+                test_size=0.2,
+                random_state=42,
+                shuffle=True
+            )
+
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+
+        y_predict = model.predict(X_test)
+
+        mae = mean_absolute_error(y_test, y_predict)
+        mse = mean_squared_error(y_test, y_predict)
+        rmse = np.sqrt(mse)
+        r2 = r2_score(y_test, y_predict)
+
+        st.subheader("Model Evaluation")
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("MAE", f"{mae:.2f} EGP")
+        col2.metric("RMSE", f"{rmse:.2f} EGP")
+        col3.metric("R²", f"{r2:.4f}")
+
+        
 # =========================
 # SIDEBAR
 # =========================
@@ -2922,9 +3006,6 @@ elif page == "Visualizations":
   visualizations_page()
 
 elif page == "Machine Learning":
-    st.title("🤖 Machine Learning")
-    st.info("Machine Learning will be added later.")
-
-
+   machine_learning_page()
 # =========================
 #

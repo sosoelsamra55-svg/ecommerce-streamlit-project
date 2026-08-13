@@ -6,3 +6,4 @@ matplotlib
 seaborn
 arabic-reshaper
 python-bidi
+scikit-learn
